@@ -1,0 +1,55 @@
+# depslib dependency file v1.0
+1792043789 source:c:\opengl\template\main.cpp
+	<windows.h>
+	<glut.h>
+
+1793924137 source:c:\opengl\figuras3d\main.cpp
+	<windows.h>
+	"glut.h"
+	<stdlib.h>
+	<math.h>
+	<vector>
+	<string>
+	<time.h>
+	<fstream>
+	<sstream>
+	<iostream>
+
+903479086 c:\opengl\figuras3d\glut.h
+	<windows.h>
+	<GL/gl.h>
+	<GL/glu.h>
+
+1794103940 source:c:\opengl\u4t1\main.cpp
+	"Globales.h"
+	"Texturas.h"
+	"Objetos3D.h"
+	"Archivos.h"
+
+1794103867 c:\opengl\u4t1\globales.h
+	<windows.h>
+	"glut.h"
+	<stdlib.h>
+	<math.h>
+	<vector>
+	<string>
+	<time.h>
+	<fstream>
+	<sstream>
+	<iostream>
+
+903479086 c:\opengl\u4t1\glut.h
+	<windows.h>
+	<GL/gl.h>
+	<GL/glu.h>
+
+1794103843 c:\opengl\u4t1\texturas.h
+	"Globales.h"
+
+1794103861 c:\opengl\u4t1\objetos3d.h
+	"Globales.h"
+
+1794103900 c:\opengl\u4t1\archivos.h
+	"Globales.h"
+	"Objetos3D.h"
+
