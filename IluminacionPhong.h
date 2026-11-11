@@ -1,9 +1,9 @@
 /*
  * ============================================================================
  * Archivo: IluminacionPhong.h
- * Descripción: Implementa las funciones paramétricas del modelo de iluminación
- * de Phong (Ambiental + Difusa + Especular) para modelos 3D, incluyendo la
- * gestión de materiales por objeto y los parámetros globales de la fuente de luz.
+ * Descripcion: Implementa desde cero las funciones parametricas del modelo de
+ * iluminacion de Phong (Ambiental + Difusa + Especular) para modelos 3D,
+ * evaluando normales, direccion de luz y vector de vision hacia la camara.
  * ============================================================================
  */
 
@@ -12,26 +12,26 @@
 
 #include "Globales.h"
 
-// Parámetros de material de Phong propios de cada modelo 3D
+// Parametros de material de Phong propios de cada figura 3D
 struct MaterialPhong {
-    float ka;          // Coeficiente de reflexión ambiental  [0.0 - 1.0]
-    float kd;          // Coeficiente de reflexión difusa     [0.0 - 1.0]
-    float ks;          // Coeficiente de reflexión especular  [0.0 - 1.0]
-    float shininess;   // Exponente de brillo especular (n)   [1.0 - 128.0]
-    ColorRGB colorBase;// Color base general del objeto
+    float ka;           // Coeficiente ambiental [0.0 - 1.0]
+    float kd;           // Coeficiente difuso    [0.0 - 1.0]
+    float ks;           // Coeficiente especular [0.0 - 1.0]
+    float shininess;    // Exponente de brillo   [1.0 - 128.0]
+    ColorRGB colorBase; // Color base del objeto
 
     MaterialPhong()
         : ka(0.30f), kd(0.75f), ks(0.60f), shininess(32.0f), colorBase(0.75f, 0.75f, 0.85f) {}
 };
 
-// Parámetros globales de la fuente de luz de Phong en la escena
+// Parametros globales de la fuente de luz de Phong en la escena
 struct ParametrosLuzPhong {
-    Vec3 posicion;          // Posición 3D de la fuente de luz (Lx, Ly, Lz)
-    float intensidadAmb;    // Intensidad ambiental global Ia [0.0 - 1.0]
-    float intensidadDif;    // Intensidad difusa de la luz Id [0.0 - 1.0]
-    float intensidadEsp;    // Intensidad especular Is        [0.0 - 1.0]
-    ColorRGB colorLuz;      // Color de la fuente luminosa
-    bool mostrarFoco;       // Dibuja un indicador en la posición de la luz
+    Vec3 posicion;       // Posicion 3D de la luz (Lx, Ly, Lz)
+    float intensidadAmb; // Intensidad ambiental global Ia [0.0 - 1.0]
+    float intensidadDif; // Intensidad difusa Id           [0.0 - 1.0]
+    float intensidadEsp; // Intensidad especular Is        [0.0 - 1.0]
+    ColorRGB colorLuz;   // Color de la fuente luminosa
+    bool mostrarFoco;    // Dibuja una esfera guia en la posicion de la luz
 
     ParametrosLuzPhong()
         : posicion(20.0f, 25.0f, 25.0f),
@@ -43,10 +43,10 @@ struct ParametrosLuzPhong {
 };
 
 // Instancia global de la luz de la escena
-inline ParametrosLuzPhong luzEscena;
+ParametrosLuzPhong luzEscena;
 
 // =========================================================================
-// OPERACIONES VECTORIALES PARA EL MODELO DE PHONG
+// FUNCIONES VECTORIALES AUXILIARES PARA PHONG
 // =========================================================================
 inline Vec3 normalizarVec3(const Vec3& v) {
     float len = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
@@ -68,23 +68,22 @@ inline Vec3 productoCruz(const Vec3& a, const Vec3& b) {
     );
 }
 
-// Transforma un punto o normal según las rotaciones/escala del modelo 3D
 inline Vec3 rotarVectorModelo(const Vec3& v, float rx, float ry, float rz) {
     float radX = rx * M_PI / 180.0f;
     float radY = ry * M_PI / 180.0f;
     float radZ = rz * M_PI / 180.0f;
 
-    // Rotación en Z
+    // Rotacion Z
     float x1 = v.x * cos(radZ) - v.y * sin(radZ);
     float y1 = v.x * sin(radZ) + v.y * cos(radZ);
     float z1 = v.z;
 
-    // Rotación en Y
+    // Rotacion Y
     float x2 =  x1 * cos(radY) + z1 * sin(radY);
     float y2 =  y1;
     float z2 = -x1 * sin(radY) + z1 * cos(radY);
 
-    // Rotación en X
+    // Rotacion X
     float x3 = x2;
     float y3 = y2 * cos(radX) - z2 * sin(radX);
     float z3 = y2 * sin(radX) + z2 * cos(radX);
@@ -93,15 +92,8 @@ inline Vec3 rotarVectorModelo(const Vec3& v, float rx, float ry, float rz) {
 }
 
 // =========================================================================
-// ECUACIÓN PARAMÉTRICA DE ILUMINACIÓN DE PHONG
+// ECUACION PARAMETRICA DE ILUMINACION DE PHONG
 // =========================================================================
-/*
- * Calcula el color resultante en un vértice/punto 3D aplicando la ecuación
- * paramétrica de Phong:
- *   I = Ia * ka * ColorObj
- *     + Id * kd * ColorObj * max(0, N·L)
- *     + Is * ks * ColorLuz * max(0, R·V)^shininess
- */
 inline ColorRGB calcularColorPhongParametrico(
     const Vec3& posMundo,
     const Vec3& normalMundo,
@@ -110,29 +102,24 @@ inline ColorRGB calcularColorPhongParametrico(
     const ParametrosLuzPhong& luz = luzEscena,
     const Vec3& posCamara = posicionCamaraMundo
 ) {
-    // 1. Vector Normal unitario (N)
     Vec3 N = normalizarVec3(normalMundo);
-
-    // 2. Vector de dirección hacia la luz (L)
     Vec3 L = normalizarVec3(Vec3(
         luz.posicion.x - posMundo.x,
         luz.posicion.y - posMundo.y,
         luz.posicion.z - posMundo.z
     ));
-
-    // 3. Vector de visión hacia la cámara (V)
     Vec3 V = normalizarVec3(Vec3(
         posCamara.x - posMundo.x,
         posCamara.y - posMundo.y,
         posCamara.z - posMundo.z
     ));
 
-    // 4. Componente Ambiental: Ia * ka
+    // 1. Componente Ambiental
     float ambR = luz.intensidadAmb * mat.ka * colorSuperficie.r * luz.colorLuz.r;
     float ambG = luz.intensidadAmb * mat.ka * colorSuperficie.g * luz.colorLuz.g;
     float ambB = luz.intensidadAmb * mat.ka * colorSuperficie.b * luz.colorLuz.b;
 
-    // 5. Componente Difusa: Id * kd * max(N · L, 0)
+    // 2. Componente Difusa
     float NdotL = productoPunto(N, L);
     float diffFactor = (NdotL > 0.0f) ? NdotL : 0.0f;
 
@@ -140,10 +127,9 @@ inline ColorRGB calcularColorPhongParametrico(
     float difG = luz.intensidadDif * mat.kd * diffFactor * colorSuperficie.g * luz.colorLuz.g;
     float difB = luz.intensidadDif * mat.kd * diffFactor * colorSuperficie.b * luz.colorLuz.b;
 
-    // 6. Componente Especular: Is * ks * max(R · V, 0)^shininess
+    // 3. Componente Especular
     float espR = 0.0f, espG = 0.0f, espB = 0.0f;
     if (NdotL > 0.0f) {
-        // Vector reflejado R = 2 * (N · L) * N - L
         Vec3 R = normalizarVec3(Vec3(
             2.0f * NdotL * N.x - L.x,
             2.0f * NdotL * N.y - L.y,
@@ -158,15 +144,13 @@ inline ColorRGB calcularColorPhongParametrico(
         }
     }
 
-    // 7. Suma total de componentes y saturación en [0.0, 1.0]
     ColorRGB resultado;
-    resultado.r = min(1.0f, max(0.0f, ambR + difR + espR));
-    resultado.g = min(1.0f, max(0.0f, ambG + difG + espG));
-    resultado.b = min(1.0f, max(0.0f, ambB + difB + espB));
+    resultado.r = (ambR + difR + espR > 1.0f) ? 1.0f : ((ambR + difR + espR < 0.0f) ? 0.0f : ambR + difR + espR);
+    resultado.g = (ambG + difG + espG > 1.0f) ? 1.0f : ((ambG + difG + espG < 0.0f) ? 0.0f : ambG + difG + espG);
+    resultado.b = (ambB + difB + espB > 1.0f) ? 1.0f : ((ambB + difB + espB < 0.0f) ? 0.0f : ambB + difB + espB);
     return resultado;
 }
 
-// Sincroniza el estado de iluminación de OpenGL y dibuja el marcador de la luz
 inline void actualizarLuzPhongEscena() {
     GLfloat amb[] = {
         luzEscena.intensidadAmb * luzEscena.colorLuz.r,
@@ -199,21 +183,17 @@ inline void actualizarLuzPhongEscena() {
     glLightfv(GL_LIGHT0, GL_POSITION, pos);
 }
 
-// Dibuja un pequeño marcador visual en la posición 3D de la fuente de luz
 inline void dibujarIndicadorLuzPhong() {
     if (!luzEscena.mostrarFoco) return;
 
-    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT);
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-
     glPushMatrix();
     glTranslatef(luzEscena.posicion.x, luzEscena.posicion.y, luzEscena.posicion.z);
     glColor3f(1.0f, 0.95f, 0.2f);
     glutWireSphere(0.8, 8, 8);
     glPopMatrix();
-
-    glPopAttrib();
+    glEnable(GL_LIGHTING);
 }
 
 #endif // ILUMINACION_PHONG_H

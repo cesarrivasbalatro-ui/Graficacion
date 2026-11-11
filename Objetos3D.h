@@ -1,11 +1,9 @@
 /*
  * ============================================================================
  * Archivo: Objetos3D.h
- * Descripción: Define la jerarquía de clases para los modelos 3D:
- *   - Objeto3D (Clase base abstracta con transformaciones y MaterialPhong).
- *   - Figura3D (Soporta Tetraedro, Cubo, Octaedro, Icosaedro, Cilindro y Esfera).
- *   - Grupo3D  (Agrupa figuras incluso separadas uniéndolas mediante líneas
- *               conectoras invisibles para manipularlas y guardarlas juntas).
+ * Descripcion: Jerarquia de objetos 3D (Tetraedro, Cubo, Octaedro, Icosaedro,
+ * Cilindro y Esfera) y clase Grupo3D que enlaza figuras separadas mediante
+ * lineas invisibles conectoras para agruparlas y almacenarlas juntas.
  * ============================================================================
  */
 
@@ -16,7 +14,7 @@
 #include "IluminacionPhong.h"
 #include "Texturas.h"
 
-// Representa la línea invisible que conecta figuras separadas dentro de un grupo
+// Linea invisible que conecta centros de figuras separadas al agruparlas
 struct LineaConectora {
     Vec3 inicio;
     Vec3 fin;
@@ -24,7 +22,7 @@ struct LineaConectora {
 };
 
 // =========================================================================
-// CLASE BASE ABSTRACTA: Objeto3D
+// CLASE BASE: Objeto3D
 // =========================================================================
 class Objeto3D {
 public:
@@ -77,11 +75,11 @@ public:
 };
 
 // =========================================================================
-// CLASE FIGURA 3D (Poliedros Regulares + Cilindro + Esfera)
+// CLASE FIGURA 3D (Poliedros + Cilindro + Esfera)
 // =========================================================================
 class Figura3D : public Objeto3D {
 private:
-    int codigoTipo; // 4, 6, 8, 20, 100 (Cilindro), 200 (Esfera)
+    int codigoTipo;
     int totalCaras;
     float tamano;
 
@@ -103,7 +101,9 @@ private:
         for (size_t i = 0; i < carasVertices.size(); i++) {
             size_t n = carasVertices[i].size();
             if (n == 3) {
-                carasUV[i] = { Vec2(0.0f, 0.0f), Vec2(1.0f, 0.0f), Vec2(0.5f, 1.0f) };
+                carasUV[i].push_back(Vec2(0.0f, 0.0f));
+                carasUV[i].push_back(Vec2(1.0f, 0.0f));
+                carasUV[i].push_back(Vec2(0.5f, 1.0f));
             } else {
                 for (size_t j = 0; j < n; j++) {
                     if (j == 0)      carasUV[i].push_back(Vec2(0.0f, 0.0f));
@@ -120,32 +120,25 @@ private:
         float radio = 0.8f;
         float mitadAltura = 1.0f;
 
-        // Vértice central superior (índice 0) e inferior (índice 1)
         addVertice(0.0f,  mitadAltura, 0.0f);
         normalesVertices.back() = Vec3(0.0f, 1.0f, 0.0f);
 
         addVertice(0.0f, -mitadAltura, 0.0f);
         normalesVertices.back() = Vec3(0.0f, -1.0f, 0.0f);
 
-        // Anillo superior (índices 2 .. 2 + slices - 1)
         for (int i = 0; i < slices; i++) {
             float ang = 2.0f * M_PI * i / slices;
-            float x = radio * cos(ang);
-            float z = radio * sin(ang);
-            addVertice(x, mitadAltura, z);
+            addVertice(radio * cos(ang), mitadAltura, radio * sin(ang));
             normalesVertices.back() = normalizarVec3(Vec3(cos(ang), 0.3f, sin(ang)));
         }
 
-        // Anillo inferior (índices 2 + slices .. 2 + 2*slices - 1)
         for (int i = 0; i < slices; i++) {
             float ang = 2.0f * M_PI * i / slices;
-            float x = radio * cos(ang);
-            float z = radio * sin(ang);
-            addVertice(x, -mitadAltura, z);
+            addVertice(radio * cos(ang), -mitadAltura, radio * sin(ang));
             normalesVertices.back() = normalizarVec3(Vec3(cos(ang), -0.3f, sin(ang)));
         }
 
-        // Caras laterales (quads)
+        // Caras laterales
         for (int i = 0; i < slices; i++) {
             int next = (i + 1) % slices;
             int top1 = 2 + i;
@@ -153,10 +146,16 @@ private:
             int bot1 = 2 + slices + i;
             int bot2 = 2 + slices + next;
 
-            carasVertices.push_back({ bot1, bot2, top2, top1 });
+            vector<int> cara;
+            cara.push_back(bot1); cara.push_back(bot2); cara.push_back(top2); cara.push_back(top1);
+            carasVertices.push_back(cara);
+
             float u1 = (float)i / slices;
             float u2 = (float)(i + 1) / slices;
-            carasUV.push_back({ Vec2(u1, 0.0f), Vec2(u2, 0.0f), Vec2(u2, 1.0f), Vec2(u1, 1.0f) });
+            vector<Vec2> uv;
+            uv.push_back(Vec2(u1, 0.0f)); uv.push_back(Vec2(u2, 0.0f));
+            uv.push_back(Vec2(u2, 1.0f)); uv.push_back(Vec2(u1, 1.0f));
+            carasUV.push_back(uv);
         }
 
         // Tapa superior
@@ -164,12 +163,16 @@ private:
             int next = (i + 1) % slices;
             float ang1 = 2.0f * M_PI * i / slices;
             float ang2 = 2.0f * M_PI * next / slices;
-            carasVertices.push_back({ 0, 2 + next, 2 + i });
-            carasUV.push_back({
-                Vec2(0.5f, 0.5f),
-                Vec2(0.5f + 0.5f * cos(ang2), 0.5f + 0.5f * sin(ang2)),
-                Vec2(0.5f + 0.5f * cos(ang1), 0.5f + 0.5f * sin(ang1))
-            });
+
+            vector<int> cara;
+            cara.push_back(0); cara.push_back(2 + next); cara.push_back(2 + i);
+            carasVertices.push_back(cara);
+
+            vector<Vec2> uv;
+            uv.push_back(Vec2(0.5f, 0.5f));
+            uv.push_back(Vec2(0.5f + 0.5f * cos(ang2), 0.5f + 0.5f * sin(ang2)));
+            uv.push_back(Vec2(0.5f + 0.5f * cos(ang1), 0.5f + 0.5f * sin(ang1)));
+            carasUV.push_back(uv);
         }
 
         // Tapa inferior
@@ -177,12 +180,16 @@ private:
             int next = (i + 1) % slices;
             float ang1 = 2.0f * M_PI * i / slices;
             float ang2 = 2.0f * M_PI * next / slices;
-            carasVertices.push_back({ 1, 2 + slices + i, 2 + slices + next });
-            carasUV.push_back({
-                Vec2(0.5f, 0.5f),
-                Vec2(0.5f + 0.5f * cos(ang1), 0.5f + 0.5f * sin(ang1)),
-                Vec2(0.5f + 0.5f * cos(ang2), 0.5f + 0.5f * sin(ang2))
-            });
+
+            vector<int> cara;
+            cara.push_back(1); cara.push_back(2 + slices + i); cara.push_back(2 + slices + next);
+            carasVertices.push_back(cara);
+
+            vector<Vec2> uv;
+            uv.push_back(Vec2(0.5f, 0.5f));
+            uv.push_back(Vec2(0.5f + 0.5f * cos(ang1), 0.5f + 0.5f * sin(ang1)));
+            uv.push_back(Vec2(0.5f + 0.5f * cos(ang2), 0.5f + 0.5f * sin(ang2)));
+            carasUV.push_back(uv);
         }
 
         totalCaras = (int)carasVertices.size();
@@ -193,12 +200,12 @@ private:
         const int slices = 16;
 
         for (int i = 0; i <= stacks; i++) {
-            float phi = M_PI * i / stacks; // 0 a PI
+            float phi = M_PI * i / stacks;
             float y = cos(phi);
             float r = sin(phi);
 
             for (int j = 0; j <= slices; j++) {
-                float theta = 2.0f * M_PI * j / slices; // 0 a 2*PI
+                float theta = 2.0f * M_PI * j / slices;
                 float x = r * cos(theta);
                 float z = r * sin(theta);
                 addVertice(x, y, z);
@@ -213,19 +220,21 @@ private:
                 int v3 = (i + 1) * (slices + 1) + j + 1;
                 int v4 = (i + 1) * (slices + 1) + j;
 
-                carasVertices.push_back({ v1, v4, v3, v2 });
+                vector<int> cara;
+                cara.push_back(v1); cara.push_back(v4); cara.push_back(v3); cara.push_back(v2);
+                carasVertices.push_back(cara);
 
                 float u1 = (float)j / slices;
                 float u2 = (float)(j + 1) / slices;
                 float vt1 = 1.0f - (float)i / stacks;
                 float vt2 = 1.0f - (float)(i + 1) / stacks;
 
-                carasUV.push_back({
-                    Vec2(u1, vt1),
-                    Vec2(u1, vt2),
-                    Vec2(u2, vt2),
-                    Vec2(u2, vt1)
-                });
+                vector<Vec2> uv;
+                uv.push_back(Vec2(u1, vt1));
+                uv.push_back(Vec2(u1, vt2));
+                uv.push_back(Vec2(u2, vt2));
+                uv.push_back(Vec2(u2, vt1));
+                carasUV.push_back(uv);
             }
         }
 
@@ -346,9 +355,6 @@ public:
         inicializarColoresYTexturas();
     }
 
-    int getCodigoTipo() const { return codigoTipo; }
-    int getTotalCaras() const { return totalCaras; }
-
     void setDatosCara(int cara, const ColorRGB& col, int texID) {
         if (cara >= 0 && cara < totalCaras) {
             coloresCaras[cara] = col;
@@ -396,7 +402,6 @@ public:
 
     void setCaraActiva(int id) override { caraActiva = id; }
 
-    // Si hay una cara activa, aplica la textura a esa cara; si es -1, la aplica a toda la figura
     void setTexturaCaraActiva(int texID) override {
         if (caraActiva >= 0 && caraActiva < totalCaras) {
             texturasCaras[caraActiva] = texID;
@@ -426,8 +431,6 @@ public:
         glRotatef(rz, 0.0f, 0.0f, 1.0f);
         glScalef(sx, sy, sz);
 
-        // Desactivamos GL_LIGHTING fijo durante el dibujado de caras para aplicar
-        // nuestra ecuación paramétrica exacta de Phong vértice por vértice
         glDisable(GL_LIGHTING);
 
         bool usarSuavizado = (codigoTipo == FIG_CILINDRO || codigoTipo == FIG_ESFERA);
@@ -453,21 +456,18 @@ public:
                 Vec3 vLocal = vertices[idx];
                 Vec3 nLocal = usarSuavizado ? normalesVertices[idx] : normalCaraLocal;
 
-                // Posición y normal del vértice en el espacio del mundo
                 Vec3 vEscalado(vLocal.x * sx, vLocal.y * sy, vLocal.z * sz);
                 Vec3 vRotado = rotarVectorModelo(vEscalado, rx, ry, rz);
                 Vec3 posMundo(vRotado.x + tx, vRotado.y + ty, vRotado.z + tz);
                 Vec3 normalMundo = normalizarVec3(rotarVectorModelo(nLocal, rx, ry, rz));
 
-                // Color base de la superficie (blanco si tiene textura para modular con luz Phong)
                 ColorRGB colBase = usaTextura ? ColorRGB(1.0f, 1.0f, 1.0f) : coloresCaras[i];
                 if (!usaTextura && seleccionada && caraActiva == -1) {
-                    colBase.r = min(1.0f, colBase.r + 0.15f);
-                    colBase.g = min(1.0f, colBase.g + 0.15f);
-                    colBase.b = min(1.0f, colBase.b + 0.15f);
+                    colBase.r = (colBase.r + 0.15f > 1.0f) ? 1.0f : colBase.r + 0.15f;
+                    colBase.g = (colBase.g + 0.15f > 1.0f) ? 1.0f : colBase.g + 0.15f;
+                    colBase.b = (colBase.b + 0.15f > 1.0f) ? 1.0f : colBase.b + 0.15f;
                 }
 
-                // Evaluar la función paramétrica de Phong en este vértice
                 ColorRGB colorPhong = calcularColorPhongParametrico(posMundo, normalMundo, colBase, material);
                 glColor3f(colorPhong.r, colorPhong.g, colorPhong.b);
 
@@ -480,20 +480,25 @@ public:
 
             glDisable(GL_TEXTURE_2D);
 
-            // Delineado de aristas y resaltado de selección
             if (seleccionada && caraActiva == (int)i) {
                 glLineWidth(4.0f);
-                glColor3f(1.0f, 0.1f, 0.1f); // Cara activa en rojo intenso
+                glColor3f(1.0f, 0.1f, 0.1f);
                 glBegin(GL_LINE_LOOP);
-                for (int idx : carasVertices[i]) glVertex3f(vertices[idx].x, vertices[idx].y, vertices[idx].z);
+                for (size_t k = 0; k < carasVertices[i].size(); k++) {
+                    int idx = carasVertices[i][k];
+                    glVertex3f(vertices[idx].x, vertices[idx].y, vertices[idx].z);
+                }
                 glEnd();
                 glLineWidth(1.0f);
             } else if (!usarSuavizado || seleccionada) {
                 glLineWidth(1.0f);
-                if (seleccionada && caraActiva == -1) glColor3f(0.9f, 0.9f, 0.2f);
+                if (seleccionada && caraActiva == -1) glColor3f(0.95f, 0.95f, 0.2f);
                 else glColor3f(0.05f, 0.05f, 0.05f);
                 glBegin(GL_LINE_LOOP);
-                for (int idx : carasVertices[i]) glVertex3f(vertices[idx].x, vertices[idx].y, vertices[idx].z);
+                for (size_t k = 0; k < carasVertices[i].size(); k++) {
+                    int idx = carasVertices[i][k];
+                    glVertex3f(vertices[idx].x, vertices[idx].y, vertices[idx].z);
+                }
                 glEnd();
             }
         }
@@ -504,25 +509,24 @@ public:
 };
 
 // =========================================================================
-// CLASE GRUPO COMPUESTO CON LÍNEAS CONECTORAS INVISIBLES
+// CLASE GRUPO 3D CON LINEAS INVISIBLES CONECTORAS
 // =========================================================================
 class Grupo3D : public Objeto3D {
 private:
     vector<Objeto3D*> componentes;
-    vector<LineaConectora> lineasInvisibles; // Líneas que conectan figuras separadas
+    vector<LineaConectora> lineasInvisibles;
 
 public:
     Grupo3D(const vector<Objeto3D*>& hijos) {
         esValido = true;
-        for (auto h : hijos) componentes.push_back(h);
+        for (size_t i = 0; i < hijos.size(); i++) componentes.push_back(hijos[i]);
         generarLineasConectoras();
     }
 
     ~Grupo3D() {
-        for (auto h : componentes) delete h;
+        for (size_t i = 0; i < componentes.size(); i++) delete componentes[i];
     }
 
-    // Crea la red de líneas invisibles que une los centros de las figuras separadas
     void generarLineasConectoras() {
         lineasInvisibles.clear();
         if (componentes.size() < 2) return;
@@ -539,7 +543,9 @@ public:
 
     Objeto3D* clonar() override {
         vector<Objeto3D*> hijosClonados;
-        for (auto h : componentes) hijosClonados.push_back(h->clonar());
+        for (size_t i = 0; i < componentes.size(); i++) {
+            hijosClonados.push_back(componentes[i]->clonar());
+        }
         Grupo3D* copia = new Grupo3D(hijosClonados);
         copia->tx = tx; copia->ty = ty; copia->tz = tz;
         copia->sx = sx; copia->sy = sy; copia->sz = sz;
@@ -558,39 +564,41 @@ public:
            << rx << " " << ry << " " << rz << " "
            << lineasInvisibles.size() << "\n";
 
-        // Guardar las líneas invisibles conectoras que enlazan las figuras separadas
-        for (const auto& l : lineasInvisibles) {
-            ss << "L " << l.inicio.x << " " << l.inicio.y << " " << l.inicio.z << " "
-               << l.fin.x << " " << l.fin.y << " " << l.fin.z << "\n";
+        for (size_t i = 0; i < lineasInvisibles.size(); i++) {
+            ss << "L " << lineasInvisibles[i].inicio.x << " "
+               << lineasInvisibles[i].inicio.y << " "
+               << lineasInvisibles[i].inicio.z << " "
+               << lineasInvisibles[i].fin.x << " "
+               << lineasInvisibles[i].fin.y << " "
+               << lineasInvisibles[i].fin.z << "\n";
         }
 
-        // Guardar cada sub-figura del grupo
-        for (auto h : componentes) {
-            ss << h->serializar() << "\n";
+        for (size_t i = 0; i < componentes.size(); i++) {
+            ss << componentes[i]->serializar() << "\n";
         }
         return ss.str();
     }
 
     void setSeleccionada(bool s) override {
         seleccionada = s;
-        for (auto h : componentes) h->setSeleccionada(s);
+        for (size_t i = 0; i < componentes.size(); i++) componentes[i]->setSeleccionada(s);
     }
 
     void ciclarCaraActiva() override {}
     void setCaraActiva(int id) override {}
 
     void setTexturaCaraActiva(int texID) override {
-        for (auto h : componentes) h->setTexturaCaraActiva(texID);
+        for (size_t i = 0; i < componentes.size(); i++) componentes[i]->setTexturaCaraActiva(texID);
     }
 
     void setColorBaseGlobal(float r, float g, float b) override {
         material.colorBase = ColorRGB(r, g, b);
-        for (auto h : componentes) h->setColorBaseGlobal(r, g, b);
+        for (size_t i = 0; i < componentes.size(); i++) componentes[i]->setColorBaseGlobal(r, g, b);
     }
 
     void setMaterial(const MaterialPhong& m) override {
         material = m;
-        for (auto h : componentes) h->setMaterial(m);
+        for (size_t i = 0; i < componentes.size(); i++) componentes[i]->setMaterial(m);
     }
 
     void dibujar() override {
@@ -602,20 +610,19 @@ public:
         glRotatef(rz, 0.0f, 0.0f, 1.0f);
         glScalef(sx, sy, sz);
 
-        // Trazado de las líneas invisibles conectoras que agrupan las figuras separadas
+        // Dibujado de las lineas invisibles conectoras del grupo
         glDisable(GL_LIGHTING);
         if (!mostrarLineasUnion) {
-            // Línea invisible (no escribe en el buffer de color a menos que se active la vista de conectores)
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
         } else {
             glLineWidth(2.0f);
-            glColor3f(0.0f, 1.0f, 1.0f); // Cian punteado si el usuario activa ver conectores con 'h'
+            glColor3f(0.0f, 1.0f, 1.0f);
         }
 
         glBegin(GL_LINES);
-        for (const auto& l : lineasInvisibles) {
-            glVertex3f(l.inicio.x, l.inicio.y, l.inicio.z);
-            glVertex3f(l.fin.x, l.fin.y, l.fin.z);
+        for (size_t i = 0; i < lineasInvisibles.size(); i++) {
+            glVertex3f(lineasInvisibles[i].inicio.x, lineasInvisibles[i].inicio.y, lineasInvisibles[i].inicio.z);
+            glVertex3f(lineasInvisibles[i].fin.x, lineasInvisibles[i].fin.y, lineasInvisibles[i].fin.z);
         }
         glEnd();
 
@@ -626,8 +633,7 @@ public:
         }
         glEnable(GL_LIGHTING);
 
-        // Dibujar todos los componentes del grupo
-        for (auto h : componentes) h->dibujar();
+        for (size_t i = 0; i < componentes.size(); i++) componentes[i]->dibujar();
         glPopMatrix();
     }
 };

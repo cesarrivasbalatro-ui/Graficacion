@@ -1,9 +1,8 @@
 /*
  * ============================================================================
  * Archivo: Archivos.h
- * Descripción: Sistema de persistencia y serialización en archivos locales (.txt).
- * Almacena y reconstruye grupos de figuras separadas con sus líneas invisibles,
- * texturas por cara, colores y parámetros de iluminación de Phong.
+ * Descripcion: Almacenamiento y lectura en archivos locales (escena_*.txt)
+ * guardando figuras agrupadas con lineas invisibles, texturas e iluminacion.
  * ============================================================================
  */
 
@@ -13,11 +12,9 @@
 #include "Globales.h"
 #include "Objetos3D.h"
 
-// Reconstruye recursivamente un Objeto3D (Figura3D o Grupo3D) desde el archivo
 inline Objeto3D* cargarObjetoDesdeStream(ifstream& archivo) {
     string token;
     while (archivo >> token) {
-        // Si el archivo incluye encabezado de configuración de Luz de Phong global
         if (token == "LUZ") {
             archivo >> luzEscena.posicion.x >> luzEscena.posicion.y >> luzEscena.posicion.z
                     >> luzEscena.intensidadAmb >> luzEscena.intensidadDif >> luzEscena.intensidadEsp
@@ -81,7 +78,6 @@ inline Objeto3D* cargarObjetoDesdeStream(ifstream& archivo) {
     return nullptr;
 }
 
-// Escanea los archivos escena_*.txt disponibles en el directorio del proyecto
 inline void escanearArchivosLocales() {
     archivosGuardados.clear();
     WIN32_FIND_DATAA findFileData;
@@ -95,17 +91,15 @@ inline void escanearArchivosLocales() {
     }
 }
 
-// Agrupa todas las figuras de la escena (incluso separadas) con líneas invisibles y las guarda
 inline void agruparYGuardarEscenaActual() {
     if (figuras.empty()) return;
 
-    // Si hay varias figuras sueltas en la escena, las unificamos en un Grupo3D con líneas invisibles
     if (figuras.size() > 1) {
         vector<Objeto3D*> copiaHijos;
-        for (auto f : figuras) {
-            f->setSeleccionada(false);
-            f->setCaraActiva(-1);
-            copiaHijos.push_back(f);
+        for (size_t i = 0; i < figuras.size(); i++) {
+            figuras[i]->setSeleccionada(false);
+            figuras[i]->setCaraActiva(-1);
+            copiaHijos.push_back(figuras[i]);
         }
         figuras.clear();
         Grupo3D* nuevoGrupo = new Grupo3D(copiaHijos);
@@ -123,13 +117,11 @@ inline void agruparYGuardarEscenaActual() {
 
     ofstream archivo(buffer);
     if (archivo.is_open()) {
-        // 1. Guardar parámetros de iluminación de Phong de la escena
         archivo << "LUZ "
                 << luzEscena.posicion.x << " " << luzEscena.posicion.y << " " << luzEscena.posicion.z << " "
                 << luzEscena.intensidadAmb << " " << luzEscena.intensidadDif << " " << luzEscena.intensidadEsp << " "
                 << luzEscena.colorLuz.r << " " << luzEscena.colorLuz.g << " " << luzEscena.colorLuz.b << "\n";
 
-        // 2. Guardar el grupo o figura compuesta con sus texturas, materiales y líneas invisibles
         archivo << figuras[0]->serializar() << "\n";
         archivo.close();
     }

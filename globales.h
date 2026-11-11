@@ -1,9 +1,10 @@
 /*
  * ============================================================================
  * Archivo: Globales.h
- * Descripción: Define las estructuras matemáticas básicas, variables de estado
- * global, parámetros de la cámara orbital con zoom hacia el centro del plano y
- * estados de navegación para la ventana de menú unificada.
+ * Descripcion: Define las estructuras matematicas basicas, variables de estado
+ * global, parametros de la camara con zoom real hacia el centro del plano (0,0,0)
+ * y el estado de navegacion con una sola tecla para el menu unificado.
+ * Compatible con GLUT de 32 bits.
  * ============================================================================
  */
 
@@ -30,7 +31,7 @@
 
 using namespace std;
 
-// Estructuras matemáticas auxiliares
+// Estructuras matematicas auxiliares
 struct ColorRGB {
     float r, g, b;
     ColorRGB(float _r = 0.8f, float _g = 0.8f, float _b = 0.8f) : r(_r), g(_g), b(_b) {}
@@ -56,7 +57,7 @@ enum TipoFigura {
     FIG_ESFERA    = 200
 };
 
-// Pestañas de navegación para la ventana única de menú
+// Vistas internas de la unica ventana de menu (se ciclan con la tecla 'p' o ESPACIO)
 enum MenuTab {
     TAB_CONTROLES   = 0,
     TAB_TEXTURAS    = 1,
@@ -64,41 +65,38 @@ enum MenuTab {
     TAB_ILUMINACION = 3
 };
 
-// Declaración adelantada de la clase base
 class Objeto3D;
 
 // =========================================================================
 // VARIABLES GLOBALES DEL ENTORNO
 // =========================================================================
-inline vector<Objeto3D*> figuras;
-inline vector<string> archivosGuardados;
-inline int figActiva = 0;
+vector<Objeto3D*> figuras;
+vector<string> archivosGuardados;
+int figActiva = 0;
 
-// Solo 2 ventanas: Escena 3D principal y Menú Unificado
-inline int mainWindow = 0;
-inline int menuWindow = 0;
-inline int menuTabActual = TAB_CONTROLES;
-inline int opcionLuzSeleccionada = 0; // Índice del parámetro activo en el menú de Phong
-inline bool mostrarLineasUnion = false; // Permite visualizar opcionalmente la línea invisible
+// Dos unicas ventanas: Escena 3D y Panel de Menu Unificado
+int mainWindow = 0;
+int menuWindow = 0;
+int menuTabActual = TAB_CONTROLES;
+int opcionLuzSeleccionada = 0;   // Parametro activo en el menu de Phong (0 a 12)
+bool mostrarLineasUnion = false; // Permite hacer visible/invisible la linea de union con 'h'
 
-// Parámetros de Cámara 3D (Verdadero Zoom hacia el centro del plano)
-inline float camaraDistancia = 45.0f; // Distancia radial real hacia el centro (0,0,0)
-inline float camaraRotX = 25.0f;      // Ángulo de elevación (Pitch)
-inline float camaraRotY = -35.0f;     // Ángulo acimutal (Yaw)
-inline float camaraPanX = 0.0f;       // Desplazamiento lateral opcional
-inline float camaraPanY = 0.0f;       // Desplazamiento vertical opcional
+// Parametros de Camara 3D con verdadero Zoom hacia el centro del plano (0,0,0)
+float camaraDistancia = 45.0f; // Distancia radial real hacia (0,0,0)
+float camaraRotX = 25.0f;      // Elevacion
+float camaraRotY = -35.0f;     // Giro horizontal
 
-// Posición calculada del ojo de la cámara en el mundo 3D (usada por Phong y gluLookAt)
-inline Vec3 posicionCamaraMundo(0.0f, 15.0f, 45.0f);
+// Posicion calculada del ojo de la camara en el mundo 3D
+Vec3 posicionCamaraMundo(0.0f, 15.0f, 45.0f);
 
-// Control de ratón
-inline int lastMouseX = -1;
-inline int lastMouseY = -1;
-inline bool isDraggingLeft = false;
-inline bool isDraggingRight = false;
+// Control de raton
+int lastMouseX = -1;
+int lastMouseY = -1;
+bool isDraggingLeft = false;
+bool isDraggingRight = false;
 
-// Arreglos globales de texturas
-inline GLuint texturasGlobales[10] = {0};
-inline vector<string> nombresTexturas;
+// Arreglos globales de texturas BMP
+GLuint texturasGlobales[10] = {0};
+vector<string> nombresTexturas;
 
 #endif // GLOBALES_H

@@ -1,10 +1,9 @@
-
 /*
  * ============================================================================
  * Archivo: Interfaz.h
- * Descripción: Gestiona el renderizado 3D con cámara en perspectiva y verdadero
- * zoom hacia el centro del plano (0,0,0), la ventana única de menú con navegación
- * por pestañas y todos los eventos de teclado y ratón.
+ * Descripcion: Renderizado de la Escena 3D (con verdadero zoom hacia el centro
+ * del plano) y de la Ventana Unica de Menu navegable mediante una sola tecla
+ * ('p' o ESPACIO), 100% compatible con GLUT de 32 bits sin glutSpecialFunc.
  * ============================================================================
  */
 
@@ -17,7 +16,6 @@
 #include "Objetos3D.h"
 #include "Archivos.h"
 
-// Refresca ambas ventanas (Escena 3D y Menú Unificado)
 inline void actualizarEscena() {
     if (mainWindow != 0) {
         glutSetWindow(mainWindow);
@@ -29,12 +27,12 @@ inline void actualizarEscena() {
     }
 }
 
-// Configura la proyección en perspectiva para permitir un verdadero acercamiento 3D
 inline void actualizarProyeccion() {
+    if (mainWindow == 0) return;
     glutSetWindow(mainWindow);
     int w = glutGet(GLUT_WINDOW_WIDTH);
     int h = glutGet(GLUT_WINDOW_HEIGHT);
-    if (h == 0) h = 1;
+    if (h <= 0) h = 1;
     float aspecto = (float)w / (float)h;
 
     glViewport(0, 0, w, h);
@@ -49,23 +47,24 @@ inline void reshape_main_cb(int w, int h) {
     actualizarEscena();
 }
 
-// Ejes del plano cartesiano 3D centrados en (0, 0, 0)
+inline void reshape_menu_cb(int w, int h) {
+    glutSetWindow(menuWindow);
+    glViewport(0, 0, w, h);
+    glutPostRedisplay();
+}
+
 inline void planoCart3D() {
     glDisable(GL_LIGHTING);
     glLineWidth(2.0f);
     glBegin(GL_LINES);
-        // Eje Z (Azul)
         glColor3f(0.2f, 0.4f, 1.0f); glVertex3i(0, 0, -500); glVertex3i(0, 0, 500);
-        // Eje X (Rojo)
         glColor3f(1.0f, 0.2f, 0.2f); glVertex3i(-500, 0, 0); glVertex3i(500, 0, 0);
-        // Eje Y (Verde)
         glColor3f(0.2f, 1.0f, 0.2f); glVertex3i(0, -500, 0); glVertex3i(0, 500, 0);
     glEnd();
     glLineWidth(1.0f);
     glEnable(GL_LIGHTING);
 }
 
-// Inicialización general del entorno OpenGL 3D
 inline void inicializacion3D() {
     glClearColor(0.16f, 0.16f, 0.18f, 1.0f);
     glEnable(GL_DEPTH_TEST);
@@ -77,7 +76,6 @@ inline void inicializacion3D() {
     escanearArchivosLocales();
     cargarTodasLasTexturas();
 
-    // Figuras iniciales de demostración
     figuras.push_back(new Figura3D(FIG_CUBO, 4.0f, -12.0f, 0.0f, 0.0f));
     figuras.push_back(new Figura3D(FIG_ESFERA, 4.5f, 0.0f, 0.0f, 0.0f));
     figuras.push_back(new Figura3D(FIG_CILINDRO, 4.0f, 12.0f, 0.0f, 0.0f));
@@ -86,27 +84,26 @@ inline void inicializacion3D() {
 }
 
 // =========================================================================
-// RENDERIZADO DE LA VENTANA PRINCIPAL 3D (VERDADERO ZOOM AL CENTRO)
+// RENDERIZADO DE LA VENTANA PRINCIPAL 3D (VERDADERO ZOOM AL CENTRO 0,0,0)
 // =========================================================================
 inline void display_main_cb() {
     glutSetWindow(mainWindow);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
-    // Cálculo esférico de la posición de la cámara apuntando al centro del plano
     float radX = camaraRotX * M_PI / 180.0f;
     float radY = camaraRotY * M_PI / 180.0f;
 
-    float eyeX = camaraPanX + camaraDistancia * cos(radX) * sin(-radY);
-    float eyeY = camaraPanY + camaraDistancia * sin(radX);
+    float eyeX = camaraDistancia * cos(radX) * sin(-radY);
+    float eyeY = camaraDistancia * sin(radX);
     float eyeZ = camaraDistancia * cos(radX) * cos(-radY);
 
     posicionCamaraMundo = Vec3(eyeX, eyeY, eyeZ);
 
-    // La cámara se acerca o aleja físicamente hacia el centro del plano (0,0,0) (+ paneo)
+    // La camara se acerca o aleja fisicamente apuntando siempre al centro del plano (0,0,0)
     gluLookAt(
         eyeX, eyeY, eyeZ,
-        camaraPanX, camaraPanY, 0.0f,
+        0.0f, 0.0f, 0.0f,
         0.0f, (cos(radX) >= 0.0f ? 1.0f : -1.0f), 0.0f
     );
 
@@ -121,15 +118,13 @@ inline void display_main_cb() {
     glutSwapBuffers();
 }
 
-// Función auxiliar para dibujar texto en el menú 2D
-inline void dibujarTextoMenu(int x, int y, const string& texto, void* font = GLUT_BITMAP_HELVETICA_12) {
+inline void dibujarTextoMenu(int x, int y, const string& texto) {
     glRasterPos2i(x, y);
-    for (char c : texto) {
-        glutBitmapCharacter(font, c);
+    for (size_t i = 0; i < texto.size(); i++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, texto[i]);
     }
 }
 
-// Formatea flotantes a 2 decimales para el menú de Phong
 inline string fmtFloat(float val) {
     stringstream ss;
     ss << fixed << setprecision(2) << val;
@@ -137,7 +132,7 @@ inline string fmtFloat(float val) {
 }
 
 // =========================================================================
-// RENDERIZADO DE LA VENTANA ÚNICA DE MENÚ (NAVEGACIÓN POR PESTAÑAS)
+// RENDERIZADO DE LA VENTANA UNICA DE MENU (NAVEGACION CON TECLA 'p')
 // =========================================================================
 inline void display_menu_cb() {
     glutSetWindow(menuWindow);
@@ -145,37 +140,44 @@ inline void display_menu_cb() {
 
     int w = glutGet(GLUT_WINDOW_WIDTH);
     int h = glutGet(GLUT_WINDOW_HEIGHT);
+    if (w <= 0) w = 430;
+    if (h <= 0) h = 560;
 
+    glViewport(0, 0, w, h);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(0, w, 0, h);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // Barra superior de pestañas navegables
-    glColor3f(0.22f, 0.25f, 0.32f);
+    // Encabezado fijo de navegacion con una sola tecla
+    glColor3f(0.22f, 0.25f, 0.34f);
     glBegin(GL_QUADS);
-        glVertex2i(0, h - 65); glVertex2i(w, h - 65);
+        glVertex2i(0, h - 68); glVertex2i(w, h - 68);
         glVertex2i(w, h);      glVertex2i(0, h);
     glEnd();
 
-    glColor3f(0.9f, 0.9f, 0.2f);
-    dibujarTextoMenu(15, h - 22, "NAVEGACION DE MENU: [F1 - F4] o teclas [ < ] y [ > ]", GLUT_BITMAP_HELVETICA_12);
+    glColor3f(1.0f, 0.95f, 0.2f);
+    dibujarTextoMenu(14, h - 22, "PULSA [ p ] (o ESPACIO) PARA CAMBIAR DE MENU");
 
-    string tabs[4] = { "[F1] Controles", "[F2] Texturas", "[F3] Escenas", "[F4] Luz Phong" };
-    int tabX = 15;
+    string tabs[4] = { "1.Controles", "2.Texturas", "3.Escenas", "4.Luz Phong" };
+    int tabX = 14;
     for (int i = 0; i < 4; i++) {
-        if (menuTabActual == i) glColor3f(0.2f, 1.0f, 0.4f);
-        else                    glColor3f(0.75f, 0.75f, 0.75f);
-        dibujarTextoMenu(tabX, h - 48, tabs[i], GLUT_BITMAP_HELVETICA_12);
-        tabX += 102;
+        if (menuTabActual == i) {
+            glColor3f(0.2f, 1.0f, 0.4f);
+            dibujarTextoMenu(tabX, h - 48, ">>" + tabs[i]);
+        } else {
+            glColor3f(0.7f, 0.7f, 0.7f);
+            dibujarTextoMenu(tabX, h - 48, "  " + tabs[i]);
+        }
+        tabX += 100;
     }
 
-    int yPos = h - 90;
+    int yPos = h - 92;
     glColor3f(1.0f, 1.0f, 1.0f);
 
     // ---------------------------------------------------------------------
-    // PESTAÑA 1: CONTROLES GENERALES Y NUEVAS FIGURAS
+    // MENU 1: CONTROLES GENERALES Y FIGURAS (INCLUYE CILINDRO Y ESFERA)
     // ---------------------------------------------------------------------
     if (menuTabActual == TAB_CONTROLES) {
         vector<string> lineas = {
@@ -184,90 +186,95 @@ inline void display_menu_cb() {
             "[ 8 ] : Octaedro        [ 2 ] : Icosaedro",
             "[ 5 / u ] : CILINDRO    [ 0 / o ] : ESFERA",
             "",
-            "===== GESTION Y AGRUPACION =====",
+            "===== SELECCION Y AGRUPACION =====",
+            "[ p / ESPACIO ] : Cambiar a siguiente Menu",
             "[ TAB ] : Cambiar figura activa entera",
-            "[ Shift + TAB ] : Seleccionar CARA (o toda si es -1)",
+            "[ f ] : Seleccionar CARA de la figura activa",
             "[ BACKSPACE ] : Eliminar figura activa",
             "[ m ] : Duplicar figura activa",
-            "[ g ] : AGRUPAR CON LINEA INVISIBLE Y GUARDAR",
-            "[ h ] : Mostrar/Ocultar linea conectora (" + string(mostrarLineasUnion ? "VISIBLE" : "OCULTA") + ")",
-            "[ p ] : Ir al menu de Iluminacion Phong",
+            "[ g ] : AGRUPAR (LINEA INVISIBLE) Y GUARDAR",
+            "[ h ] : Ver linea union (" + string(mostrarLineasUnion ? "VISIBLE" : "INVISIBLE") + ")",
             "",
             "===== CAMARA (ZOOM REAL AL CENTRO) =====",
             "[ Clic Izq + Arrastrar ] : Orbitar camara",
-            "[ Clic Der + Arrastrar ] : Zoom real hacia (0,0,0)",
-            "[ I, K, J, L ] : Rotar camara   [ r ] : Centrar vista",
-            "[ Flechas ] : Desplazar centro de vista",
+            "[ Clic Der + Arrastrar ] : Zoom hacia (0,0,0)",
+            "[ I, K, J, L ] : Rotar camara   [ r ] : Resetear",
             "",
             "===== TRANSFORMAR FIGURA ACTIVA =====",
             "[ W, A, S, D, Q, E ] : Trasladar en X, Y, Z",
             "[ + / - ] : Escala Global",
             "[ c/C, v/V, b/B ] : Escala en eje X, Y, Z",
-            "[ x, y, z ] : Rotar figura sobre sus ejes"
+            "[ x, y, z ] : Rotar figura en su eje"
         };
-        for (const string& l : lineas) {
-            dibujarTextoMenu(18, yPos, l);
+        for (size_t i = 0; i < lineas.size(); i++) {
+            dibujarTextoMenu(16, yPos, lineas[i]);
             yPos -= 19;
         }
     }
     // ---------------------------------------------------------------------
-    // PESTAÑA 2: APLICADOR Y VALIDADOR DE TEXTURAS BMP
+    // MENU 2: TEXTURAS BMP
     // ---------------------------------------------------------------------
     else if (menuTabActual == TAB_TEXTURAS) {
-        dibujarTextoMenu(18, yPos, "===== TEXTURAS DISPONIBLES (Carpeta texturas/) =====");
+        dibujarTextoMenu(16, yPos, "===== MENU DE TEXTURAS (Carpeta texturas/) =====");
         yPos -= 22;
-        dibujarTextoMenu(18, yPos, "Pulsa 0 al 9 para aplicar a la cara (o figura entera):");
-        yPos -= 28;
+        glColor3f(0.8f, 0.9f, 1.0f);
+        dibujarTextoMenu(16, yPos, "Pulsa [ f ] para elegir cara, o 0-9 para aplicar:");
+        yPos -= 26;
 
         if (nombresTexturas.empty()) {
             glColor3f(1.0f, 0.5f, 0.5f);
-            dibujarTextoMenu(18, yPos, "No se encontraron archivos .bmp en 'texturas/'.");
+            dibujarTextoMenu(16, yPos, "No se encontraron archivos .bmp en 'texturas/'.");
         } else {
             for (size_t i = 0; i < nombresTexturas.size(); i++) {
                 string estado = (texturasGlobales[i] != 0) ? "[OK]" : "[Error]";
-                if (texturasGlobales[i] != 0) glColor3f(0.6f, 1.0f, 0.6f);
+                if (texturasGlobales[i] != 0) glColor3f(0.5f, 1.0f, 0.5f);
                 else                          glColor3f(1.0f, 0.4f, 0.4f);
 
-                string texto = "[ " + to_string(i) + " ] " + nombresTexturas[i] + " " + estado;
-                dibujarTextoMenu(18, yPos, texto);
+                dibujarTextoMenu(16, yPos, "[ " + to_string(i) + " ] " + nombresTexturas[i] + " " + estado);
                 yPos -= 22;
             }
         }
         yPos -= 15;
-        glColor3f(0.85f, 0.85f, 0.85f);
-        dibujarTextoMenu(18, yPos, "[ n ] : Quitar textura de la cara/figura activa");
+        glColor3f(0.9f, 0.9f, 0.9f);
+        dibujarTextoMenu(16, yPos, "[ n ] : Quitar textura de la cara/figura activa");
+        yPos -= 22;
+        dibujarTextoMenu(16, yPos, "[ p ] : Ir al siguiente menu (Importar Escenas)");
     }
     // ---------------------------------------------------------------------
-    // PESTAÑA 3: IMPORTADOR DE ESCENAS Y GRUPOS LOCALES
+    // MENU 3: IMPORTADOR DE ESCENAS GUARDADAS
     // ---------------------------------------------------------------------
     else if (menuTabActual == TAB_ESCENAS) {
-        dibujarTextoMenu(18, yPos, "===== IMPORTADOR DE ESCENAS GUARDADAS =====");
+        dibujarTextoMenu(16, yPos, "===== IMPORTADOR DE ESCENAS Y GRUPOS =====");
         yPos -= 22;
-        dibujarTextoMenu(18, yPos, "Pulsa 1 al 9 para cargar grupo al escenario:");
-        yPos -= 28;
+        glColor3f(0.8f, 0.9f, 1.0f);
+        dibujarTextoMenu(16, yPos, "Pulsa del 1 al 9 para cargar grupo al escenario:");
+        yPos -= 26;
 
         if (archivosGuardados.empty()) {
             glColor3f(1.0f, 0.7f, 0.4f);
-            dibujarTextoMenu(18, yPos, "Sin archivos (Presiona 'g' para agrupar y exportar).");
+            dibujarTextoMenu(16, yPos, "Sin archivos (Pulsa 'g' para agrupar y guardar).");
         } else {
-            glColor3f(0.6f, 0.9f, 1.0f);
+            glColor3f(0.6f, 0.95f, 1.0f);
             for (size_t i = 0; i < archivosGuardados.size() && i < 9; i++) {
-                dibujarTextoMenu(18, yPos, "[ " + to_string(i + 1) + " ] " + archivosGuardados[i]);
+                dibujarTextoMenu(16, yPos, "[ " + to_string(i + 1) + " ] " + archivosGuardados[i]);
                 yPos -= 22;
             }
         }
+        yPos -= 15;
+        glColor3f(0.9f, 0.9f, 0.9f);
+        dibujarTextoMenu(16, yPos, "[ p ] : Ir al siguiente menu (Iluminacion Phong)");
     }
     // ---------------------------------------------------------------------
-    // PESTAÑA 4: ILUMINACIÓN PARAMÉTRICA DE PHONG (CONSTRUIDA DESDE CERO)
+    // MENU 4: ILUMINACION PARAMETRICA DE PHONG (CON UNA SOLA TECLA)
     // ---------------------------------------------------------------------
     else if (menuTabActual == TAB_ILUMINACION) {
-        dibujarTextoMenu(18, yPos, "===== ILUMINACION PARAMETRICA DE PHONG =====");
+        dibujarTextoMenu(16, yPos, "===== ILUMINACION PARAMETRICA DE PHONG =====");
         yPos -= 20;
-        glColor3f(0.8f, 0.9f, 1.0f);
-        dibujarTextoMenu(18, yPos, "Usa [Flecha Arriba/Abajo] para elegir parametro");
+        glColor3f(0.4f, 1.0f, 0.6f);
+        dibujarTextoMenu(16, yPos, "[ n ] : Cambiar al siguiente parametro de la lista");
         yPos -= 18;
-        dibujarTextoMenu(18, yPos, "Usa [Flecha Izq/Der] o [ - / + ] para ajustar valor");
-        yPos -= 26;
+        dibujarTextoMenu(16, yPos, "[ + ] / [ - ] : Subir o bajar valor seleccionado");
+        yPos -= 24;
 
         MaterialPhong matActual;
         if (!figuras.empty() && figActiva >= 0 && figActiva < (int)figuras.size()) {
@@ -275,9 +282,9 @@ inline void display_menu_cb() {
         }
 
         vector<string> parametros = {
-            "1. Coef. Ambiental Objeto (ka) : " + fmtFloat(matActual.ka),
-            "2. Coef. Difuso Objeto (kd)    : " + fmtFloat(matActual.kd),
-            "3. Coef. Especular Objeto (ks) : " + fmtFloat(matActual.ks),
+            "1. Coef. Ambiental Figura (ka) : " + fmtFloat(matActual.ka),
+            "2. Coef. Difuso Figura (kd)    : " + fmtFloat(matActual.kd),
+            "3. Coef. Especular Figura (ks) : " + fmtFloat(matActual.ks),
             "4. Brillo Phong (Shininess n)  : " + fmtFloat(matActual.shininess),
             "5. Color Figura Rojo (R)       : " + fmtFloat(matActual.colorBase.r),
             "6. Color Figura Verde (G)      : " + fmtFloat(matActual.colorBase.g),
@@ -293,10 +300,10 @@ inline void display_menu_cb() {
         for (size_t i = 0; i < parametros.size(); i++) {
             if ((int)i == opcionLuzSeleccionada) {
                 glColor3f(1.0f, 0.95f, 0.2f);
-                dibujarTextoMenu(18, yPos, ">> " + parametros[i] + " <<");
+                dibujarTextoMenu(16, yPos, ">> " + parametros[i] + " <<");
             } else {
-                glColor3f(0.9f, 0.9f, 0.9f);
-                dibujarTextoMenu(18, yPos, "   " + parametros[i]);
+                glColor3f(0.88f, 0.88f, 0.88f);
+                dibujarTextoMenu(16, yPos, "   " + parametros[i]);
             }
             yPos -= 20;
         }
@@ -306,7 +313,7 @@ inline void display_menu_cb() {
 }
 
 // =========================================================================
-// AJUSTE INTERACTIVO DE PARÁMETROS DE PHONG
+// AJUSTE INTERACTIVO DE PARAMETROS DE PHONG
 // =========================================================================
 inline void ajustarParametroPhongSeleccionado(float direccion) {
     MaterialPhong mat;
@@ -345,7 +352,7 @@ inline void ajustarParametroPhongSeleccionado(float direccion) {
 }
 
 // =========================================================================
-// CONTROLES DE RATÓN Y TECLADO UNIFICADOS
+// CONTROLES DE RATON Y TECLADO (100% COMPATIBLE CON GLUT 32 BITS)
 // =========================================================================
 inline void mouse_cb(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON) {
@@ -354,14 +361,6 @@ inline void mouse_cb(int button, int state, int x, int y) {
     } else if (button == GLUT_RIGHT_BUTTON) {
         if (state == GLUT_DOWN) { isDraggingRight = true; lastMouseY = y; }
         else                    { isDraggingRight = false; }
-    }
-    // Soporte adicional para rueda del ratón en GLUT (botones 3 y 4)
-    else if (button == 3 && state == GLUT_DOWN) {
-        camaraDistancia = max(3.0f, camaraDistancia - 2.5f);
-        actualizarEscena();
-    } else if (button == 4 && state == GLUT_DOWN) {
-        camaraDistancia = min(250.0f, camaraDistancia + 2.5f);
-        actualizarEscena();
     }
 }
 
@@ -375,7 +374,7 @@ inline void motion_cb(int x, int y) {
         lastMouseY = y;
         actualizarEscena();
     } else if (isDraggingRight) {
-        // Verdadero acercamiento/alejamiento de la cámara hacia el centro (0,0,0)
+        // Zoom real acercando o alejando la camara hacia el centro del plano (0,0,0)
         int deltaY = y - lastMouseY;
         camaraDistancia += deltaY * 0.35f;
         if (camaraDistancia < 3.0f)   camaraDistancia = 3.0f;
@@ -386,36 +385,31 @@ inline void motion_cb(int x, int y) {
 }
 
 inline void keyboard_cb(unsigned char key, int x, int y) {
-    // Navegación rápida entre pestañas del menú con '<' / '>' o ',' / '.'
-    if (key == ',' || key == '<') {
-        menuTabActual = (menuTabActual + 3) % 4;
-        actualizarEscena();
-        return;
-    }
-    if (key == '.' || key == '>') {
+    // 1. UNICA TECLA PARA NAVEGAR ENTRE LOS 4 MENUS: 'p', 'P' o Barra Espaciadora
+    if (key == 'p' || key == 'P' || key == ' ') {
         menuTabActual = (menuTabActual + 1) % 4;
         actualizarEscena();
         return;
     }
 
-    // Acceso directo a la pestaña de Iluminación de Phong con 'p'
-    if (key == 'p' || key == 'P') {
-        menuTabActual = TAB_ILUMINACION;
-        actualizarEscena();
+    // 2. Seleccionar cara individual con una sola tecla ('f' o 'F') compatible con 32 bits
+    if (key == 'f' || key == 'F') {
+        if (!figuras.empty()) {
+            figuras[figActiva]->ciclarCaraActiva();
+            actualizarEscena();
+        }
         return;
     }
 
-    // Mostrar/Ocultar líneas invisibles de unión con 'h'
+    // 3. Mostrar/Ocultar lineas invisibles de union con 'h'
     if (key == 'h' || key == 'H') {
         mostrarLineasUnion = !mostrarLineasUnion;
         actualizarEscena();
         return;
     }
 
-    // Resetear vista al centro exacto del plano (0,0,0)
+    // 4. Resetear camara apuntando al centro (0,0,0)
     if (key == 'r' || key == 'R') {
-        camaraPanX = 0.0f;
-        camaraPanY = 0.0f;
         camaraDistancia = 45.0f;
         camaraRotX = 25.0f;
         camaraRotY = -35.0f;
@@ -423,62 +417,44 @@ inline void keyboard_cb(unsigned char key, int x, int y) {
         return;
     }
 
-    // Eliminar figura activa con Backspace o Suprimir
-    if (key == 8 || key == 127) {
-        if (!figuras.empty()) {
-            delete figuras[figActiva];
-            figuras.erase(figuras.begin() + figActiva);
+    // 5. Controles exclusivos cuando esta abierto el Menu 4 (Iluminacion Phong)
+    if (menuTabActual == TAB_ILUMINACION) {
+        if (key == 'n' || key == 'N') {
+            opcionLuzSeleccionada = (opcionLuzSeleccionada + 1) % 13;
+            actualizarEscena();
+            return;
+        }
+        if (key == '+' || key == '=') {
+            ajustarParametroPhongSeleccionado(1.0f);
+            return;
+        }
+        if (key == '-' || key == '_') {
+            ajustarParametroPhongSeleccionado(-1.0f);
+            return;
+        }
+    }
+
+    // 6. Controles exclusivos cuando esta abierto el Menu 2 (Texturas BMP)
+    if (menuTabActual == TAB_TEXTURAS) {
+        if (key >= '0' && key <= '9') {
+            int texID = key - '0';
+            if (!figuras.empty() && texID < (int)nombresTexturas.size()) {
+                figuras[figActiva]->setTexturaCaraActiva(texID);
+                actualizarEscena();
+            }
+            return;
+        }
+        if (key == 'n' || key == 'N') {
             if (!figuras.empty()) {
-                if (figActiva >= (int)figuras.size()) figActiva = 0;
-                figuras[figActiva]->setSeleccionada(true);
+                figuras[figActiva]->setTexturaCaraActiva(-1);
+                actualizarEscena();
             }
+            return;
         }
-        actualizarEscena();
-        return;
     }
 
-    // Agrupar con línea invisible y exportar escena completa (texturas + iluminación)
-    if (key == 'g' || key == 'G') {
-        agruparYGuardarEscenaActual();
-        actualizarEscena();
-        return;
-    }
-
-    // Duplicar figura o grupo activo
-    if (key == 'm' || key == 'M') {
-        if (!figuras.empty() && figActiva >= 0 && figActiva < (int)figuras.size()) {
-            Objeto3D* clon = figuras[figActiva]->clonar();
-            if (clon) {
-                figuras[figActiva]->setSeleccionada(false);
-                clon->trasladar(3.0f, 0.0f, 0.0f);
-                figuras.push_back(clon);
-                figActiva = (int)figuras.size() - 1;
-                figuras[figActiva]->setSeleccionada(true);
-            }
-        }
-        actualizarEscena();
-        return;
-    }
-
-    // Quitar textura en la cara/figura activa
-    if (key == 'n' || key == 'N') {
-        if (!figuras.empty()) {
-            figuras[figActiva]->setTexturaCaraActiva(-1);
-            actualizarEscena();
-        }
-        return;
-    }
-
-    // Comportamiento contextual de las teclas numéricas según la pestaña activa del menú
-    if (menuTabActual == TAB_TEXTURAS && key >= '0' && key <= '9') {
-        int texID = key - '0';
-        if (!figuras.empty()) {
-            figuras[figActiva]->setTexturaCaraActiva(texID);
-            actualizarEscena();
-        }
-        return;
-    }
-    else if (menuTabActual == TAB_ESCENAS && key >= '1' && key <= '9') {
+    // 7. Controles exclusivos cuando esta abierto el Menu 3 (Importar Escenas)
+    if (menuTabActual == TAB_ESCENAS && key >= '1' && key <= '9') {
         int idx = key - '1';
         if (idx >= 0 && idx < (int)archivosGuardados.size()) {
             ifstream archivo(archivosGuardados[idx].c_str());
@@ -497,7 +473,44 @@ inline void keyboard_cb(unsigned char key, int x, int y) {
         return;
     }
 
-    // Inserción de Figuras (Tetraedro, Cubo, Octaedro, Icosaedro + Cilindro y Esfera)
+    // 8. Eliminar figura activa con Backspace (8) o Suprimir (127)
+    if (key == 8 || key == 127) {
+        if (!figuras.empty()) {
+            delete figuras[figActiva];
+            figuras.erase(figuras.begin() + figActiva);
+            if (!figuras.empty()) {
+                if (figActiva >= (int)figuras.size()) figActiva = 0;
+                figuras[figActiva]->setSeleccionada(true);
+            }
+        }
+        actualizarEscena();
+        return;
+    }
+
+    // 9. Agrupar figuras con linea invisible y guardar escena en archivo .txt
+    if (key == 'g' || key == 'G') {
+        agruparYGuardarEscenaActual();
+        actualizarEscena();
+        return;
+    }
+
+    // 10. Duplicar figura activa
+    if (key == 'm' || key == 'M') {
+        if (!figuras.empty() && figActiva >= 0 && figActiva < (int)figuras.size()) {
+            Objeto3D* clon = figuras[figActiva]->clonar();
+            if (clon) {
+                figuras[figActiva]->setSeleccionada(false);
+                clon->trasladar(3.0f, 0.0f, 0.0f);
+                figuras.push_back(clon);
+                figActiva = (int)figuras.size() - 1;
+                figuras[figActiva]->setSeleccionada(true);
+            }
+        }
+        actualizarEscena();
+        return;
+    }
+
+    // 11. Insertar figuras (Poliedros + Cilindro y Esfera)
     if (key == '4' || key == '6' || key == '8' || key == '2' ||
         key == '5' || key == 'u' || key == 'U' ||
         key == '0' || key == 'o' || key == 'O') {
@@ -518,38 +531,27 @@ inline void keyboard_cb(unsigned char key, int x, int y) {
         return;
     }
 
-    // Selección de figura entera (TAB) o cara individual (Shift + TAB)
+    // 12. Cambiar figura activa entera con TAB (ASCII 9)
     if (key == 9) {
-        int mod = glutGetModifiers();
-        if (mod == GLUT_ACTIVE_SHIFT) {
-            if (!figuras.empty()) figuras[figActiva]->ciclarCaraActiva();
-        } else {
-            if (!figuras.empty()) {
-                figuras[figActiva]->setCaraActiva(-1);
-                figuras[figActiva]->setSeleccionada(false);
-                figActiva = (figActiva + 1) % figuras.size();
-                figuras[figActiva]->setSeleccionada(true);
-            }
+        if (!figuras.empty()) {
+            figuras[figActiva]->setCaraActiva(-1);
+            figuras[figActiva]->setSeleccionada(false);
+            figActiva = (figActiva + 1) % figuras.size();
+            figuras[figActiva]->setSeleccionada(true);
+            actualizarEscena();
         }
-        actualizarEscena();
         return;
     }
 
-    // Si estamos en la pestaña de Iluminación Phong, '+' y '-' también ajustan el parámetro si se desea
-    if (menuTabActual == TAB_ILUMINACION && (key == '[' || key == ']')) {
-        ajustarParametroPhongSeleccionado(key == ']' ? 1.0f : -1.0f);
-        return;
-    }
-
-    // Controles de rotación de cámara con I, K, J, L
+    // 13. Rotacion de camara por teclado (I, K, J, L)
     switch (key) {
         case 'j': case 'J': camaraRotY -= 5.0f; break;
         case 'l': case 'L': camaraRotY += 5.0f; break;
-        case 'i': case 'I': camaraRotX = min(89.0f, camaraRotX + 5.0f); break;
-        case 'k': case 'K': camaraRotX = max(-89.0f, camaraRotX - 5.0f); break;
+        case 'i': case 'I': if (camaraRotX < 85.0f) camaraRotX += 5.0f; break;
+        case 'k': case 'K': if (camaraRotX > -85.0f) camaraRotX -= 5.0f; break;
     }
 
-    // Transformaciones de la figura o grupo activo
+    // 14. Transformaciones sobre la figura o grupo activo
     if (!figuras.empty() && figActiva >= 0 && figActiva < (int)figuras.size()) {
         Objeto3D* obj = figuras[figActiva];
         switch (key) {
@@ -575,46 +577,6 @@ inline void keyboard_cb(unsigned char key, int x, int y) {
         }
     }
 
-    actualizarEscena();
-}
-
-// Teclas especiales (F1-F4 para navegar por la ventana única de menú y flechas)
-inline void special_cb(int key, int x, int y) {
-    // Cambiar entre pestañas en la única ventana de menú
-    if (key == GLUT_KEY_F1) { menuTabActual = TAB_CONTROLES;   actualizarEscena(); return; }
-    if (key == GLUT_KEY_F2) { menuTabActual = TAB_TEXTURAS;    actualizarEscena(); return; }
-    if (key == GLUT_KEY_F3) { menuTabActual = TAB_ESCENAS;     actualizarEscena(); return; }
-    if (key == GLUT_KEY_F4) { menuTabActual = TAB_ILUMINACION; actualizarEscena(); return; }
-
-    // Si la pestaña activa es Iluminación de Phong, las flechas navegan y ajustan los valores
-    if (menuTabActual == TAB_ILUMINACION) {
-        if (key == GLUT_KEY_UP) {
-            opcionLuzSeleccionada = (opcionLuzSeleccionada + 12) % 13;
-            actualizarEscena();
-            return;
-        }
-        if (key == GLUT_KEY_DOWN) {
-            opcionLuzSeleccionada = (opcionLuzSeleccionada + 1) % 13;
-            actualizarEscena();
-            return;
-        }
-        if (key == GLUT_KEY_LEFT) {
-            ajustarParametroPhongSeleccionado(-1.0f);
-            return;
-        }
-        if (key == GLUT_KEY_RIGHT) {
-            ajustarParametroPhongSeleccionado(1.0f);
-            return;
-        }
-    }
-
-    // En las demás pestañas, las flechas desplazan la cámara
-    switch (key) {
-        case GLUT_KEY_LEFT:  camaraPanX -= 2.0f; break;
-        case GLUT_KEY_RIGHT: camaraPanX += 2.0f; break;
-        case GLUT_KEY_UP:    camaraPanY += 2.0f; break;
-        case GLUT_KEY_DOWN:  camaraPanY -= 2.0f; break;
-    }
     actualizarEscena();
 }
 

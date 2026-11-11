@@ -1,8 +1,8 @@
 /*
  * ============================================================================
  * Archivo: Texturas.h
- * Descripción: Cargador nativo de archivos de imagen BMP (24 bits) y escáner
- * automático del directorio local 'texturas/' con mapeo por nombre e índice.
+ * Descripcion: Cargador nativo de archivos BMP (24 bits) y escaneo automatico
+ * de la carpeta 'texturas/'.
  * ============================================================================
  */
 
@@ -11,7 +11,6 @@
 
 #include "Globales.h"
 
-// Cargador nativo de texturas BMP de 24 bits
 inline GLuint loadBMP_custom(const char* imagepath) {
     FILE* file = fopen(imagepath, "rb");
     if (!file) return 0;
@@ -39,7 +38,6 @@ inline GLuint loadBMP_custom(const char* imagepath) {
     fread(data, 1, imageSize, file);
     fclose(file);
 
-    // Convertir canales BGR (estándar BMP) a RGB
     for (unsigned int i = 0; i + 2 < imageSize; i += 3) {
         unsigned char tmp = data[i];
         data[i] = data[i + 2];
@@ -59,7 +57,6 @@ inline GLuint loadBMP_custom(const char* imagepath) {
     return textureID;
 }
 
-// Escanea dinámicamente los archivos .bmp en la carpeta texturas/
 inline void cargarTodasLasTexturas() {
     nombresTexturas.clear();
     for (int i = 0; i < 10; i++) texturasGlobales[i] = 0;
@@ -70,7 +67,7 @@ inline void cargarTodasLasTexturas() {
     if (hFind != INVALID_HANDLE_VALUE) {
         int i = 0;
         do {
-            if (i > 9) break; // Límite de 10 texturas mapeadas a las teclas 0-9
+            if (i > 9) break;
             nombresTexturas.push_back(findFileData.cFileName);
             string path = "texturas/" + string(findFileData.cFileName);
             texturasGlobales[i] = loadBMP_custom(path.c_str());
@@ -80,13 +77,11 @@ inline void cargarTodasLasTexturas() {
     }
 }
 
-// Obtiene el índice de textura a partir del nombre del archivo BMP
 inline int buscarIndiceTexturaPorNombre(const string& nombreArchivo) {
     if (nombreArchivo == "NONE" || nombreArchivo == "-1") return -1;
     for (size_t i = 0; i < nombresTexturas.size(); i++) {
         if (nombresTexturas[i] == nombreArchivo) return (int)i;
     }
-    // Compatibilidad hacia atrás si en el archivo viene un número del 0 al 9
     if (nombreArchivo.size() == 1 && isdigit(nombreArchivo[0])) {
         int id = nombreArchivo[0] - '0';
         if (id >= 0 && id < (int)nombresTexturas.size()) return id;
