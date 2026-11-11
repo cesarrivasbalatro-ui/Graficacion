@@ -1,0 +1,411 @@
+
+
+#include "Globales.h"
+#include "Texturas.h"
+#include "Objetos3D.h"
+#include "Archivos.h"
+
+vector<Objeto3D*> figuras;
+vector<string> archivosGuardados;
+vector<string> nombresTexturas;
+GLuint texturasGlobales[10] = {0};
+int figActiva = 0;
+
+int mainWindow, menuWindow, selectorWindow, texturaWindow;
+
+float camaraZoom = 1.0f;
+float camaraRotX = 20.0f;
+float camaraRotY = -30.0f;
+float camaraPosX = 0.0f;
+float camaraPosY = 0.0f;
+
+int lastMouseX = -1;
+int lastMouseY = -1;
+bool isDraggingLeft = false;
+bool isDraggingRight = false;
+
+void actualizarEscena() {
+    glutSetWindow(mainWindow); glutPostRedisplay();
+    glutSetWindow(menuWindow); glutPostRedisplay();
+    glutSetWindow(selectorWindow); glutPostRedisplay();
+}
+
+void actualizarProyeccion() {
+    glutSetWindow(mainWindow);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    float limiteX = 100.0f / camaraZoom;
+    float limiteY = 100.0f / camaraZoom;
+    glOrtho(-limiteX, limiteX, -limiteY, limiteY, -1000.0, 1000.0);
+    glMatrixMode(GL_MODELVIEW);
+}
+
+void planoCart3D() {
+    glDisable(GL_LIGHTING);
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+        glColor3f(0.0, 0.0, 1.0); glVertex3i(0, 0, -500); glVertex3i(0, 0, 500);
+        glColor3f(1.0, 0.0, 0.0); glVertex3i(-500, 0, 0); glVertex3i(500, 0, 0);
+        glColor3f(0.0, 1.0, 0.0); glVertex3i(0, -500, 0); glVertex3i(0, 500, 0);
+    glEnd();
+    glLineWidth(1.0f);
+    glEnable(GL_LIGHTING);
+}
+
+// Configuracin Inicial
+void inicializacion3D(void) {
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    glEnable(GL_DEPTH_TEST);
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+
+    GLfloat luzAmbiente[] = { 0.4f, 0.4f, 0.4f, 1.0f };
+    GLfloat luzDifusa[]   = { 0.8f, 0.8f, 0.8f, 1.0f };
+    GLfloat luzPosicion[] = { 10.0f, 10.0f, 20.0f, 0.0f };
+    glLightfv(GL_LIGHT0, GL_AMBIENT, luzAmbiente);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, luzDifusa);
+    glLightfv(GL_LIGHT0, GL_POSITION, luzPosicion);
+
+    actualizarProyeccion();
+    escanearArchivosLocales();
+    cargarTodasLasTexturas();
+
+    figuras.push_back(new Figura3D(6, 5.0f, -15.0f, 0.0f, 0.0f));
+    figuras.push_back(new Figura3D(6, 6.0f, 0.0f, 0.0f, 0.0f));
+
+    if (!figuras.empty()) figuras[0]->setSeleccionada(true);
+}
+
+void lanzarMenuConsola() {
+    cout << "\n============================================\n";
+    cout << "    MENU DE ILUMINACION Y COLOR (CONSOLA)   \n";
+    cout << "============================================\n";
+    cout << "1. Cambiar Luz Ambiental Global (Oscurecer/Aclarar el mundo)\n";
+    cout << "2. Cambiar Color Base de toda la figura activa (RGB)\n";
+    cout << "3. Cancelar y regresar al simulador\n";
+    cout << "Elige una opcion: ";
+
+    int op; cin >> op;
+    if (op == 1) {
+        float i;
+        cout << "Nivel de luz global (ej. 0.1 oscuro, 1.0 brillante): ";
+        cin >> i;
+        GLfloat amb[] = {i, i, i, 1.0f};
+        glLightfv(GL_LIGHT0, GL_AMBIENT, amb);
+        cout << ">> Luz ambiental actualizada.\n";
+    }
+    else if (op == 2) {
+        float r, g, b;
+        cout << "Introduce Rojo (0.0 a 1.0): "; cin >> r;
+        cout << "Introduce Verde (0.0 a 1.0): "; cin >> g;
+        cout << "Introduce Azul (0.0 a 1.0): "; cin >> b;
+        if (!figuras.empty()) {
+            figuras[figActiva]->setColorBaseGlobal(r, g, b);
+            cout << ">> Color de la figura actualizado.\n";
+        }
+    }
+    cout << "Volviendo al simulador 3D...\n\n";
+}
+
+void display_main_cb(void) {
+    glutSetWindow(mainWindow);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity();
+
+    glTranslatef(camaraPosX, camaraPosY, 0.0f);
+    glRotatef(camaraRotX, 1.0, 0.0, 0.0);
+    glRotatef(camaraRotY, 0.0, 1.0, 0.0);
+
+    planoCart3D();
+    for (size_t i = 0; i < figuras.size(); i++) figuras[i]->dibujar();
+    glutSwapBuffers();
+}
+
+void display_menu_cb(void) {
+    glutSetWindow(menuWindow); glClear(GL_COLOR_BUFFER_BIT);
+    int w = glutGet(GLUT_WINDOW_WIDTH), h = glutGet(GLUT_WINDOW_HEIGHT);
+    glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluOrtho2D(0, w, 0, h);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    vector<string> lineas = {
+        "===== CONTROLES GENERALES =====",
+        "[ TAB ] : Cambiar figura activa entera",
+        "[ Shift + TAB ] : Seleccionar CARA de la figura",
+        "[ BACKSPACE ] : Eliminar figura",
+        "[ m ] : Duplicar figura activa",
+        "[ g ] : AGRUPAR Y EXPORTAR (Incl. Texturas)",
+        "[ p ] : MENU CONSOLA (ILUMINACION Y COLOR)",
+        "",
+        "===== CAMARA Y TRANSFORMACIONES =====",
+        "[ I, K, J, L ] : Mover Camara",
+        "[ W, A, S, D, Q, E ] : Trasladar figura",
+        "[ + / - ] : Escala Global",
+        "[ x, y, z ] : Rotar figura en su eje"
+    };
+
+    int yPos = h - 30;
+    for (const string& linea : lineas) {
+        glRasterPos2i(20, yPos);
+        for (char c : linea) glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
+        yPos -= 20;
+    }
+    glutSwapBuffers();
+}
+
+void display_selector_cb(void) {
+    glutSetWindow(selectorWindow); glClear(GL_COLOR_BUFFER_BIT);
+    int w = glutGet(GLUT_WINDOW_WIDTH), h = glutGet(GLUT_WINDOW_HEIGHT);
+    glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluOrtho2D(0, w, 0, h);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    vector<string> lineas;
+    lineas.push_back("===== IMPORTADOR DE ESCENAS =====");
+    if (archivosGuardados.empty()) lineas.push_back("Sin archivos (Presiona 'g' para exportar)");
+    else {
+        lineas.push_back("Teclas 1 al 9 para fusionar al escenario:");
+        for (size_t i = 0; i < archivosGuardados.size() && i < 9; i++) {
+            lineas.push_back("[ " + to_string(i + 1) + " ] " + archivosGuardados[i]);
+        }
+    }
+    int yPos = h - 30;
+    for (const string& l : lineas) { glRasterPos2i(20, yPos); for (char c : l) glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c); yPos -= 20; }
+    glutSwapBuffers();
+}
+
+void display_texturas_cb(void) {
+    glutSetWindow(texturaWindow); glClear(GL_COLOR_BUFFER_BIT);
+    int w = glutGet(GLUT_WINDOW_WIDTH), h = glutGet(GLUT_WINDOW_HEIGHT);
+    glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluOrtho2D(0, w, 0, h);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    vector<string> lineas;
+    lineas.push_back("===== TEXTURAS DISPONIBLES =====");
+    lineas.push_back("(Pulsa un numero para pintar la cara iluminada)");
+    lineas.push_back("");
+
+    if (nombresTexturas.empty()) {
+        lineas.push_back("No se encontraron archivos .bmp");
+        lineas.push_back("en la carpeta 'texturas/'.");
+    } else {
+        for (size_t i = 0; i < nombresTexturas.size(); i++) {
+            string estado = (texturasGlobales[i] != 0) ? "[OK]" : "[Error al cargar]";
+            string texto = "[ " + to_string(i) + " ] " + nombresTexturas[i] + " " + estado;
+            lineas.push_back(texto);
+        }
+    }
+
+    int yPos = h - 30;
+    for (const string& l : lineas) {
+        glRasterPos2i(20, yPos);
+        for (char c : l) glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
+        yPos -= 20;
+    }
+    glutSwapBuffers();
+}
+
+void mouse_cb(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) { isDraggingLeft = true; lastMouseX = x; lastMouseY = y; }
+        else { isDraggingLeft = false; }
+    } else if (button == GLUT_RIGHT_BUTTON) {
+        if (state == GLUT_DOWN) { isDraggingRight = true; lastMouseY = y; }
+        else { isDraggingRight = false; }
+    }
+}
+
+void motion_cb(int x, int y) {
+    if (isDraggingLeft) {
+        camaraRotY += (x - lastMouseX) * 0.5f; camaraRotX += (y - lastMouseY) * 0.5f;
+        lastMouseX = x; lastMouseY = y; actualizarEscena();
+    } else if (isDraggingRight) {
+        camaraZoom -= (y - lastMouseY) * 0.01f;
+        if (camaraZoom < 0.05f) camaraZoom = 0.05f;
+        if (camaraZoom > 15.0f) camaraZoom = 15.0f;
+        actualizarProyeccion(); lastMouseY = y; actualizarEscena();
+    }
+}
+
+void keyboard_texturas_cb(unsigned char key, int x, int y) {
+    if (key >= '0' && key <= '9') {
+        size_t texID = key - '0';
+        if (!figuras.empty() && texID < nombresTexturas.size()) {
+            figuras[figActiva]->setTexturaCaraActiva(texID);
+            actualizarEscena();
+        }
+    }
+}
+
+void keyboard_selector_cb(unsigned char key, int x, int y) {
+    if (key >= '1' && key <= '9') {
+        size_t idx = key - '1';
+        if (idx < archivosGuardados.size()) {
+            ifstream archivo(archivosGuardados[idx].c_str());
+            if (archivo.is_open()) {
+                Objeto3D* cargado = cargarObjeto(archivo);
+                if (cargado) {
+                    if (!figuras.empty()) figuras[figActiva]->setSeleccionada(false);
+                    figuras.push_back(cargado);
+                    figActiva = figuras.size() - 1;
+                    figuras[figActiva]->setSeleccionada(true);
+                    actualizarEscena();
+                }
+                archivo.close();
+            }
+        }
+    }
+}
+
+void keyboard_cb(unsigned char key, int x, int y) {
+    if (key == 8 || key == 127) {
+        if (!figuras.empty()) {
+            delete figuras[figActiva];
+            figuras.erase(figuras.begin() + figActiva);
+            if (!figuras.empty()) {
+                if (figActiva >= figuras.size()) figActiva = 0;
+                figuras[figActiva]->setSeleccionada(true);
+            }
+        }
+        actualizarEscena(); return;
+    }
+
+    if (key == 'p' || key == 'P') {
+        lanzarMenuConsola();
+        actualizarEscena(); return;
+    }
+
+    if (key == 'g' || key == 'G') {
+        if (figuras.empty()) return;
+        time_t rawtime; struct tm * timeinfo; char buffer[80];
+        time(&rawtime); timeinfo = localtime(&rawtime);
+        strftime(buffer, sizeof(buffer), "escena_%Y%m%d_%H%M%S.txt", timeinfo);
+        ofstream archivo(buffer);
+        if (archivo.is_open()) {
+            archivo << "G " << figuras.size() << " 0 0 0 1 1 1 0 0 0\n";
+            for (size_t i = 0; i < figuras.size(); i++) archivo << figuras[i]->serializar() << "\n";
+            archivo.close();
+        }
+        escanearArchivosLocales(); actualizarEscena(); return;
+    }
+
+    if (key == 'm' || key == 'M') {
+        if (!figuras.empty() && figActiva >= 0 && figActiva < figuras.size()) {
+            Objeto3D* clon = figuras[figActiva]->clonar();
+            if (clon) {
+                figuras[figActiva]->setSeleccionada(false);
+                figuras.push_back(clon);
+                figActiva = figuras.size() - 1;
+                figuras[figActiva]->setSeleccionada(true);
+            }
+        }
+        actualizarEscena(); return;
+    }
+
+    if (key == '4' || key == '6' || key == '8' || key == '2') {
+        int carasReq = (key == '4') ? 4 : (key == '6') ? 6 : (key == '8') ? 8 : 20;
+        if (!figuras.empty()) figuras[figActiva]->setSeleccionada(false);
+        figuras.push_back(new Figura3D(carasReq, 5.0f, 0.0f, 0.0f, 0.0f));
+        figActiva = figuras.size() - 1;
+        figuras[figActiva]->setSeleccionada(true);
+        actualizarEscena(); return;
+    }
+
+    if (key == 9) {
+        int mod = glutGetModifiers();
+        if (mod == GLUT_ACTIVE_SHIFT) {
+            if (!figuras.empty()) figuras[figActiva]->ciclarCaraActiva();
+        } else {
+            if (!figuras.empty()) {
+                figuras[figActiva]->setCaraActiva(-1);
+                figuras[figActiva]->setSeleccionada(false);
+                figActiva = (figActiva + 1) % figuras.size();
+                figuras[figActiva]->setSeleccionada(true);
+            }
+        }
+        actualizarEscena(); return;
+    }
+
+    switch(key) {
+        case 'j': camaraRotY -= 5.0f; break;
+        case 'l': camaraRotY += 5.0f; break;
+        case 'i': camaraRotX -= 5.0f; break;
+        case 'k': camaraRotX += 5.0f; break;
+    }
+
+    if (!figuras.empty() && figActiva >= 0 && figActiva < figuras.size()) {
+        Objeto3D* obj = figuras[figActiva];
+        switch(key) {
+            case 'd': obj->trasladar(1.0f, 0.0f, 0.0f); break;
+            case 'a': obj->trasladar(-1.0f, 0.0f, 0.0f); break;
+            case 'w': obj->trasladar(0.0f, 1.0f, 0.0f); break;
+            case 's': obj->trasladar(0.0f, -1.0f, 0.0f); break;
+            case 'q': obj->trasladar(0.0f, 0.0f, 1.0f); break;
+            case 'e': obj->trasladar(0.0f, 0.0f, -1.0f); break;
+
+            case '+': obj->escalar(1.1f, 1.1f, 1.1f); break;
+            case '-': obj->escalar(0.9f, 0.9f, 0.9f); break;
+            case 'c': obj->escalarX(1.1f); break; case 'C': obj->escalarX(0.9f); break;
+            case 'v': obj->escalarY(1.1f); break; case 'V': obj->escalarY(0.9f); break;
+            case 'b': obj->escalarZ(1.1f); break; case 'B': obj->escalarZ(0.9f); break;
+
+            case 'x': obj->rotar(5.0f, 0.0f, 0.0f); break;
+            case 'y': obj->rotar(0.0f, 5.0f, 0.0f); break;
+            case 'z': obj->rotar(0.0f, 0.0f, 5.0f); break;
+        }
+    }
+    actualizarEscena();
+}
+
+int main(int argc, char** argv) {
+    srand(time(NULL));
+    glutInit(&argc, argv);
+
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitWindowSize(900, 600);
+    glutInitWindowPosition(50, 100);
+    mainWindow = glutCreateWindow("Escena 3D - Iluminacion y Texturas");
+    inicializacion3D();
+    glutDisplayFunc(display_main_cb);
+    glutKeyboardFunc(keyboard_cb);
+    glutMouseFunc(mouse_cb);
+    glutMotionFunc(motion_cb);
+
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitWindowSize(380, 420);
+    glutInitWindowPosition(970, 0);
+    menuWindow = glutCreateWindow("Menu de Opciones");
+    glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
+    glutDisplayFunc(display_menu_cb);
+    glutKeyboardFunc(keyboard_cb);
+
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitWindowSize(380, 250);
+    glutInitWindowPosition(970, 450);
+    selectorWindow = glutCreateWindow("Selector de Archivos Locales");
+    glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
+    glutDisplayFunc(display_selector_cb);
+    glutKeyboardFunc(keyboard_selector_cb);
+
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitWindowSize(380, 280);
+    glutInitWindowPosition(970, 730);
+    texturaWindow = glutCreateWindow("Menu de Texturas 0-9");
+    glClearColor(0.3f, 0.2f, 0.1f, 1.0f);
+    glutDisplayFunc(display_texturas_cb);
+    glutKeyboardFunc(keyboard_texturas_cb);
+
+    cout << "===============================================" << endl;
+    cout << "    EL MOTOR 3D ESTA CORRIENDO EN LAS VENTANAS " << endl;
+    cout << "    (Presiona 'p' en el simulador para invocar " << endl;
+    cout << "     el menu de luces aqui en la consola)" << endl;
+    cout << "===============================================" << endl;
+
+    glutMainLoop();
+    return 0;
+}
